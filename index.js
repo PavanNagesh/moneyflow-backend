@@ -13,13 +13,20 @@ dotenv.config(); // loads moneyflow-backend/.env
 
 const app = express();
 
+// PRODUCTION FRONTEND URL
+const FRONTEND_URL = "https://moneyflow-frontend.onrender.com";
+
 // Middleware
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: [
+      "http://localhost:5173",        // local dev
+      FRONTEND_URL                   // deployed frontend
+    ],
     credentials: true,
   })
 );
+
 app.use(express.json());
 app.use(
   session({
@@ -37,11 +44,6 @@ const JWT_SECRET = process.env.JWT_SECRET;
 // ==========================
 // 🔥 CONNECT TO MONGODB ATLAS
 // ==========================
-if (!process.env.MONGO_URI) {
-  console.error("❌ ERROR: MONGO_URI missing in backend .env");
-  process.exit(1);
-}
-
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => console.log("MongoDB Connected (Atlas)"))
@@ -74,7 +76,7 @@ const Expense = mongoose.model(
 );
 
 // ==========================
-// 🔥 GOOGLE OAUTH (NO SECRETS IN FILE)
+// 🔥 GOOGLE OAUTH
 // ==========================
 passport.use(
   new GoogleStrategy(
@@ -136,7 +138,6 @@ setInterval(updateRates, 12 * 60 * 60 * 1000);
 // ==========================
 const authenticate = (req, res, next) => {
   const token = req.headers.authorization?.split(" ")[1];
-
   if (!token) return res.status(401).json({ msg: "No token provided" });
 
   jwt.verify(token, JWT_SECRET, (err, payload) => {
@@ -160,10 +161,11 @@ app.get(
   passport.authenticate("google", { scope: ["profile", "email"] })
 );
 
+// Google OAuth Callback
 app.get(
   "/auth/google/callback",
   passport.authenticate("google", {
-    failureRedirect: "http://localhost:5173/login",
+    failureRedirect: `${FRONTEND_URL}/login`,
   }),
   (req, res) => {
     const token = jwt.sign({ id: req.user._id }, JWT_SECRET, {
@@ -171,7 +173,7 @@ app.get(
     });
 
     res.redirect(
-      `http://localhost:5173/google-callback?token=${token}&email=${req.user.email}&username=${req.user.username}`
+      `${FRONTEND_URL}/google-callback?token=${token}&email=${req.user.email}&username=${req.user.username}`
     );
   }
 );
